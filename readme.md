@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/rbund/bd-flux.svg?branch=master)](https://travis-ci.org/rbund/bd-flux)
+[![GitHub tag](https://img.shields.io/npm/v/bd-flux.svg)](https://www.npmjs.com/package/bd-flux)
+
 bd-flux
 =======
 
