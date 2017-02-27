@@ -143,7 +143,7 @@ var fl = (function() {
         this.Status = STATUS.RUNNING;
         sendMessage(this, MESSAGES.RUN, this.Id, this);
         BlockHistory.push(this);
-        console.log('BlockHistory.length =', BlockHistory.length);
+        //console.log('BlockHistory.length =', BlockHistory.length);
         fndesc.Fn.apply(fndesc.$this, fndesc.Args);
       }
     },
@@ -184,11 +184,11 @@ var fl = (function() {
       }
       return(this);
     },
-    error: function(err) {
+    error: function(err, section) {
       this.Errors++;
       this.ResultStatus = RESULT.ERROR;
       this.LastError = err;
-      sendMessage(this, MESSAGES.ERROR, this.id, err);
+      sendMessage(this, MESSAGES.ERROR, section||this.id, err);
       return(this);
     },
     close: function() {
@@ -241,7 +241,7 @@ var fl = (function() {
       var cbdesc = createDesc(this, this.CallbackCounter++, arguments), $this = this,
           fn = function(error, result) {
             if (error) 
-              $this.error(error);
+              $this.error(error, cbdesc.Id);
             else 
               sendMessage($this, MESSAGES.CALLBACKRESULT, cbdesc.Id, result);
             $this.cbEnd([cbdesc.Id]);
