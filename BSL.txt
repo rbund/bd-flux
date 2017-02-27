@@ -1,0 +1,47 @@
+Bundsche Software Lizenz 1.0
+----------------------------
+
+(c) 2017 Rüdiger Bund
+
+
+Hiermit wird jeder Person, die eine Kopie des Programmes und/oder Programmquelltextes (die Sache)
+erhält, unentgeltlich und bis auf Widerruf das Recht eingeräumt, die Sache
+
+- zu nutzen
+- als Teil anderer Programme zu verwenden oder mit anderen Programmen zu kombinieren
+- in unveränderter Form zu vervielfältigen, zu verbreiten und öffentlich zugänglich zu machen
+- zu verändern und die Veränderung zu vervielfältigen, zu verbreiten und öffentlich zugänglich
+  zu machen
+
+solange folgende Bestimmungen akzeptiert und eingehalten sind:
+
+1. Es sind alle Vermerke zum Urheber und dieser Lizenz in der Sache zu belassen.
+2. Es sind Empfänger der Sache deutlich auf den Urheber und auf diese Lizenz hinzuweisen.
+3. Es sind Empfänger der Sache deutlich darauf auf Änderungen der Sache hinzuweisen.
+4. Die Sache, auch in veränderter Form, darf nur unter den hier genannten Bestimmungen verbreitet
+   oder öffentlich zugänglich gemacht werden.
+5. Bei Verwendung als Teil anderer Programme oder in Kombination mit anderen Programmen gelten die
+   Punkte 2 und 3 ebenso.
+6. Es besteht keinerlei Gewährleistung für die Sache oder deren Eigenschaften.
+7. Es besteht keinerlei Haftung für durch die Verwendung der Sache entstandene Schäden. Es obliegt
+   der Person vor Nutzung der Sache diese auf Tauglichkeit zu prüfen.
+
+Jede Verletzung einer dieser Bestimmungen führt automatisch zur Beendigung der Lizenzgewährung.
+
+Ausgenommen von den Rechten dieser Lizenz sind grundsätzlich alle staatlichen Institutionen und
+staatliche Stiftungen gleich welcher Nation. Ebenso ausgenommen sind Parteien, Parteistiftungen
+und Anstalten des öffentliche Rechts der Bundesrepublik Deutschland sowie Vereine oder juristische
+Personen, die mit oder für staatliche Institutionen, Anstalten des öffentlichen Rechts oder
+Parteien der Bundesepublik Deutschland arbeiten oder mehr als 50% ihrer Einkünfte von diesen
+beziehen. Einzig Schulen und Hochschulen ist es als staatlichen Institutionen gestattet die Sache
+entsprechend dieser Lizenzvereinbarung zu nutzen.
+
+Sollten einzelne Bestimmungen dieser Lizenz unwirksam oder undurchführbar sein oder unwirksam oder
+undurchführbar werden, bleibt davon die Wirksamkeit der Lizenz im Übrigen unberührt. An die Stelle
+der unwirksamen oder undurchführbaren Bestimmung soll diejenige wirksame und durchführbare Regelung
+treten, deren Wirkungen der beabsichtigten Zielsetzung am nächsten kommen, die der Urheber mit der
+unwirksamen bzw. undurchführbaren Bestimmung verfolgt hat. Dies gilt entsprechend für den Fall,
+dass sich die Lizenz als lückenhaft erweist.
+
+Dieser Lizenztext darf in unveränderter Form vervielfältigt, verbreitet, öffentlich zugänglich 
+gemacht und zur Lizenzierung von Programmen und Programmquelltexten Dritter genutzt werden.

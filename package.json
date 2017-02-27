@@ -1,0 +1,17 @@
+{
+  "name": "bd-flux",
+  "version": "1.0.0",
+  "description": "An async flow and callback toolkit",
+  "main": "bd-flux.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "async",
+    "parallel",
+    "callback",
+    "callback-hell"
+  ],
+  "author": "rbund <npm@bund.email>",
+  "license": "SEE LICENSE IN BSL.TXT"
+}
