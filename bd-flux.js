@@ -230,7 +230,7 @@ var fl = (function() {
           fn = function(fn) {
            if (arguments.length == 0) throw new TypeError('no function specified'); // assert
            if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function'); // assert
-           var res = fn.apply(cbdesc.$this, cbdesc.Args);
+           var res = fn.apply(cbdesc.$this, arguments/*cbdesc.Args*/);
            $this.cbEnd([cbdesc.Id, res]);
            //return($this);
           };
