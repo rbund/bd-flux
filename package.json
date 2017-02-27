@@ -12,6 +12,14 @@
     "callback",
     "callback-hell"
   ],
-  "author": "rbund <npm@bund.email>",
-  "license": "SEE LICENSE IN BSL.TXT"
+  "author": "rbund",
+  "license": "SEE LICENSE IN BSL.TXT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rbund/bd-flux.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rbund/bd-flux/issues"
+  },
+  "homepage": "https://github.com/rbund/bd-flux"
 }
