@@ -1,297 +1,293 @@
-/**
- * (c) 2017 R�diger Bund
- * Lizenz/License: BSL.TXT / http://www.bundnetz.de/BSL.TXT
- *
- */
-
-// global definition in case of not beeing "required"
-
+// bd-flux
+// =======
+// (c) 2017 Rüdiger Bund
+// Lizenz/License: BSL.TXT / http://www.bundnetz.de/BSL.TXT
+//
+//
+// bd-flux soll wohl im Browser als auch in Node.js verwendbar sein.
+// Daher ist sowohl auf eine möglichst kompatible Notation (kein ES5/6)
+// und die globale Definition für die Browser-nutzung geachtet. Die
+// nun folgende Definition hat bei der Nutzung von `require` keine
+// Bedeutung, doch wird dadurch die globale variable `fl` im Browser
+// registriert.
 var fl = (function() {
 
-  "use strict";
- 
-  // private variables and functions, scope: Class
-  
-  // simply copies an array like object into a new array
+  "use strict"; // jdi-disable-line
+
+// Private Klassenvariablen und -funktionen
+// ----------------------------------------
+
+
+// ### Allgemeine Hilfsfunktionen ###
+// gibt es nur eine zum Erstellen einer Array-Kopie. Diese wird später gebraucht um eine
+// Kopie für das `argument`-Objekt zu erstellen. Mir ist durchaus klar, dass dies auch
+// mit Methoden der Array-Klasse mit weniger Quelltext möglich wäre, jedoch ist dies
+// performanter (keine Relevanz hier) und ein Hinweis auf meinen Wunsch, Makros in
+// Javascript einzuführen! :)
   function copyArray(arr) { var i = 0, len = arr.length, res = new Array(len); for(; i < len; i++) res[i] = arr[i]; return(res); } // macro
-  
-  /***
-   * Returns a more exact type of the given argument 'what'.
-   * Possible results: 'object','string','array','function','null','undefined','number' and possibly more.
-   * Compares the type of 'what' with any additional parameter and returns
-   * true when it's found, otherwise false.
-   */
-  function typeOfEx(what) { // macro
-    var s = Object.prototype.toString.call(what);
-    s = s.slice(8,s.length-1).toLowerCase(); 
-    if (arguments.length == 1) return(s);
-    for (var i = 1, len = arguments.length; i < len; i++) if (s == arguments[i]) return(true);
-    return(false);
-  }
-  
-  // Returns all property values of given argument 'source' as array.
-  function objectValues(source) { // macro
-     var list = Object.getOwnPropertyNames(source), res = new Array(list.length);
-     for (var i = 0, len = list.length; i < len; i++) res[i] = source[list[i]];
-     return(res);
-  }
-  
-  // constants
-  
-  var 
-    // possible block status
-    STATUS = {READY: 0, RUNNING: 1, CLOSED: 2, DONE: 4, CANCELED: 5},
-    // possible block results
-    RESULT = {SUCCESS: 0, ERROR: 1},
-    // triggered message types
-    MESSAGES = { 
-      RUN: 'run', ERROR: 'error', CLOSE: 'close', DONE: 'done', CANCEL: 'cancel', FINAL: 'final',
-      CALLBACKSTART: 'callbackStart', CALLBACKEND: 'callbackEnd', CALLBACKRESULT: 'callbackresult'
-    }
-    ;
-  // global variables
-  var
-    MessageHandler = SimpleMessenger(), // global message dispatcher
-    Storage = {}, // global data storage
-    BlockCounter = 0, // global block id counter (when not defined)
-    BlockHistory = []; // call history of blocks, the last element is the current one
-    
-  // helper objects
-  
-  // name says all
-  function SimpleIterator() {
-    if (! (this instanceof SimpleIterator)) return new SimpleIterator();
-    var items = [], index = 0;
-    this.add = function(item) { items.push(item); };
-    this.current = function() { if (index < items.length) return(items[index]); };
-    this.next = function() { if (index < items.length) return(items[index++]); };
-    this.empty = function() { return(index >= items.length); };
-  }
-  /**
-   * Stores message listeners and calls them on demand.
-   * Messages are organized by sections and keys. Since there might be several
-   * listeners for a message section/key, all are stored in an array.
-   * A special key is '*'. Any listener stored under that key is called for all 
-   * messages of the section.
-   */
-  function SimpleMessenger(allowduplicates) {
-    if (! (this instanceof SimpleMessenger)) return new SimpleMessenger(allowduplicates);
-    var store = {};
-    this.addListener = function(section, key, fn) {
-      var k = key || '*';
-      if (!store[section]) store[section] = {};
-      if (!store[section][k]) store[section][k] = [];
-      if (allowduplicates || store[section][k].indexOf(fn) < 0) store[section][k].push(fn);
-    };
-    this.send = function($this, section, key, data) {
-    var mstore = store[section]||{}, 
-        kstore = key ? (mstore['*']||[]).concat( (key === '*'|| !mstore[key]) ? [] : mstore[key]) : Array.prototype.concat.apply([], objectValues(mstore)||[]);
-    for (var i = 0, len = kstore.length; i < len; i++) kstore[i].apply($this, data);
-    }
-  }
-  // class helper functions
-  function sendMessage($this, msgtype, msgkey, data) {
-    var args = (Array.isArray(data)) ? data : [data];
-    //console.log('message:', msgtype, msgkey, data);
-    MessageHandler.send($this, msgtype, msgkey, args);
-  }
-  
-  // creates an execution descriptor.
-  function createDesc($this, id, $args) {
-    var args = copyArray($args), t, name = id;
-    if (args.length && typeof args[0] == 'string') name = args.shift(); // first argument: name
-    if (args.length && typeOfEx(args[0],'object','null','undefined','function')) t = args.shift(); // second or first argument: this
-    return({ 'Args': args, 'Id': name, '$this': t });
-  }
-  
-  // finishes a blocks execution with the given status and sends out
-  // the given message.
-  function finishBlock($this, newstatus, message) {
-    $this.Status = newstatus;
-    sendMessage($this, message, $this.Id, $this);
-    BlockHistory.pop();
-    if ($this.Parent) checkIfDone($this.Parent);
-    else {
-      sendMessage($this, MESSAGES.FINAL,null, Storage);
-      //throw "PROGRAMM END";
-    }
-  }
-  
-  // checks if a block could be finished.
-  function checkIfDone($this) {
-    if ($this.OpenCallbacks === 0) {
-      if ($this.Status === STATUS.CLOSED) {
-        if ($this.BlockQueue.empty()) {
-          finishBlock($this, STATUS.DONE, MESSAGES.DONE);
-        }
-        else {
-          var block = $this.BlockQueue.next();
-          block.run();
-        }
-      }
-      else if ($this.Status === STATUS.CANCELED) {
-        finishBlock($this, STATUS.CANCELED, MESSAGES.CANCEL);
+
+// ### Klassenspezfische Hilfsfunktionen ###
+// sind Funktionen oder Funktionsteile, die in Methoden mehrfach gebraucht werden.
+
+// Die Funktion `next()` ruft die nächste Funktion aus dem Funktionsspeicher auf, wenn
+// die aktuelle abgeschlossen ist. Geprüft wird dies immer dann, wenn entweder die
+// Hauptroutine durchlaufen oder ein Callback "zurückgerufen" wurde.
+// Abgeschlossen ist eine Funktion dann, wenn die Hauptroutine der Funktion
+// durchlaufen wurde (markiert durch `closed`) _und_
+// wenn auf keine weiteren Callbacks zu warten ist (bedeutet, wenn der
+// Zähler der von `callbackcounter` gleich 0 ist.
+  function next($this) {
+    if ($this.closed && $this.callbackcounter === 0) {
+      if ($this.rindex < $this.queue.length) {
+        $this.callbackcounter = 0;
+        $this.closed = false;
+        $this.depth++;
+        $this.windex = $this.rindex+1;
+        $this.queue[$this.rindex++]($this.data);
+        $this.closed = true;
+        next($this);
+        $this.depth--;
       }
     }
   }
-  
-  // class prototype
+
+// Die Funktion `cb_start()` wird bei Anforderung einer Callback-Funktion aufgerufen.
+// Auch wenn sie momentan noch unscheibar ist, so halte ich es für besser diese
+// für den späteren Gebrauch zu kapseln. Die Callback-Funktionen sollen keine
+// Kenntnisse über die Verwaltung der Callbacks haben.
+  function cb_start($this) {
+    $this.callbackcounter++;
+  }
+// Das Gleiche gilt für `cb_end()`.
+  function cb_end($this) {
+    $this.callbackcounter--;
+    next($this);
+  }
+
+// MERKE: Beschreibung mergeJobData
+
+  function mergeJobData(targetdata, targetkey, sourcedata, id) {
+    var target = targetdata[targetkey];
+    if (!target) { target = {}; targetdata[targetkey] = target; }
+    for (var key in sourcedata) {
+      if (! target[key]) target[key] = [];
+      if (id !== undefined) target[key][id] = sourcedata[key];
+      else target[key].push(sourcedata[key]);
+    }
+  }
+
+// Der Klassenprototyp
+// -------------------
+// Der Prototyp einer Klasse stellt i.d.R. Methoden bereit, die alle
+// Instanzen der Klasse gemein haben. Instanzvariablen werden hingegen
+// üblicherweise im Konstruktor erstellt.
   var $proto = {
-    run : function() {
-      var fndesc = this.FnDesc;
-      if (this.Status === STATUS.READY) {
-        this.Status = STATUS.RUNNING;
-        sendMessage(this, MESSAGES.RUN, this.Id, this);
-        BlockHistory.push(this);
-        //console.log('BlockHistory.length =', BlockHistory.length);
-        fndesc.Fn.apply(fndesc.$this, fndesc.Args);
-      }
-    },
-    x: function() {
-      var fndesc = createDesc(this, BlockCounter, arguments), $this = this,
-          fn = function(fn) {
-           if (arguments.length == 0) throw new TypeError('no function specified'); // assert
-           if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function'); // assert
-           fndesc.Fn = fn;
-           var block = new $constructor(fndesc, $this);
-           $this.BlockQueue.add(block);
-           BlockCounter++;
-           if (typeOfEx(fndesc.$this,'null','undefined')) fndesc.$this = block;
-           return($this);
-          };
-      return(fn);
-    },
-    cbStart: function(id) {
-      if (this.Status === STATUS.RUNNING || true) {
-        this.OpenCallbacks++;
-        sendMessage(this, MESSAGES.CALLBACKSTART, this.Id, arguments);
-      }
-      else {
-        //MERKE: stattdessen im hauptblock eintragen lasssen?
-        throw 'callback started on closed block';
+// Eine der wichtigsten Funktionen dieser Bibliothek ist es, eine auszuführende
+// Funktion im Funktionsspeicher einzustellen. Dies wird durch die Methode `ex()`
+// realisiert. `ex` steht dabei für "execute".
+// Alle Parameter werden in der Reihenfolge der Übergabe angenommen,
+// darauf geprüft ob sie Funktionen sind,
+// und im Funktionsspeicher eingestellt.
+
+    ex : function() {
+      for (var i = 0; i < arguments.length; i++) {
+        if (typeof arguments[i] !== 'function') throw new TypeError(arguments[i] + ' is not a function');
+        this.queue.splice(this.windex++,0,arguments[i]);
       }
       return(this);
     },
-    cbEnd: function(id) {
-      if (this.OpenCallbacks > 0) {
-        this.OpenCallbacks--;
-        sendMessage(this, MESSAGES.CALLBACKEND, this.Id, arguments);
-        checkIfDone(this);
+
+
+// Um eine Datenreihe, repräsentiert durch einen Array, mit nur einer Funktion
+// abzuarbeiten, werden zwei Methoden zur Verfügung gestellt, die "job"-Methoden.
+// Sie unterscheiden sich darin, dass eine die Daten sequentiell, also
+// nacheinander abarbeitet, während die zweite dies parallel tut.
+// Technisch gesehen wird für die Bearbeitung in der Iteration eine neue Instanz
+// von bd-flux erstellt.
+
+// MERKE: Beschreibung für sjob, pjob
+
+    // seriell
+    sjob : function(data_array, fn, reskey, noclear) {
+      var boss = new $constructor(0), $this = this;
+      for (var i = 0; i < data_array.length; i++) {
+        boss.ex(
+          (function(work, proc) {
+            var worker = function(d) {
+              proc(work, d);
+            };
+            return(worker);
+          })(data_array[i],fn),
+          (function(id) {
+          return(
+            function(d) {
+              mergeJobData($this.data, reskey, d, id);
+              if (!noclear) d.__fl.data = { "__fl": d.__fl };
+            });
+          })(i)
+        );
       }
-      else {
-        // MERKE: dies an den Hauptblock weitergeben
-        throw "MERKE: dies an den Hauptblock weitergeben"
+      var waiter = this.cb();
+      boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      return(this);
+    },
+    // parallel
+    pjob : function(data_array, fn, reskey) {
+      var boss = new $constructor(), $this = this;
+
+      for (var i = 0; i < data_array.length; i++) {
+          (function(work, proc, id, cb) {
+              var iboss = new $constructor();
+              iboss.run(
+                function(d) { proc(work, d); },
+                function(d) { mergeJobData($this.data, reskey, d, id); cb(); }
+              );
+          })(data_array[i],fn, i, boss.cb());
+      }
+      var waiter = this.cb();
+      boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      return(this);
+    },
+
+// Es kommt vor, dass es sinnvoll ist im aktuellen Ablauf einen neuen zu erstellen,
+// speziell z.B. während der Ausführung von jobs (siehe oben).
+// Dies ist jederzeit möglich indem eine neue Instanz eines bd-flux Objektes
+// erstellt wird. Wird dieser Ablauf gestartet, läuft er "unabhängig" vom aktuellen,
+// d.h. potentiell parallel ab. Kniffliger ist es, den neuen Ablauf mit dem aktuellen
+// zu synchronisieren. Hierfür ist die Methode `sub()` gedacht. Sie erstellt ein
+// neues bd-flux Objekt und gibt dieses zurück. Die aktuelle Funktion wird allerdings
+// erst dann abgeschlossen, wenn zuvor der per `sub()` angeforderte neue Ablauf
+// ausgeführt wurde.
+
+    sub : function() {
+      var flow = new $constructor();
+      var cb = this.cb();
+      flow.ex( function() { cb(); });
+      flow.windex--; // hmmm a bit hacky...
+      return(flow);
+    },
+
+// Eine weitere essentielle Funktion ist die Kapselung von Callbacks.
+// Ohne diese Kapselung ist unbekannt, ob die ausgeführte Funktion tatsächlich
+// beendet ist und das ganze Modell wäre hinfällig.
+// Generell kann zwischen zwei Arten von Callbacks unterschieden werden, einer
+// generischen, die die übergebenen Parameter einfach weiterreicht, und der
+// "klassischen", die zwei Parameter, den ersten zur Fehlerindikation und den
+// zweiten als Ergebnis im Erfolgsfall, übergeben bekommt.
+// Für beide Arten stellt bd-flux Methoden bereit, um diese einfach zu kapseln.
+// Zuerst die generische:
+// Die übergebenen Parameter werden als Schlüssel für das Datenobjekt
+// interpretiert. Damit dies möglich ist, müssen die Argument in den Scope der
+// zurückgegebenen Callback-Funktion übernommen werden.
+// Die Callback-Funktion übernimmt die Zuordnung der Ergebnisse zu den evtl. zuvor
+// angegebenen Schlüsseln. Dabei gibt es zwei Szenarien:
+// 1. Es wurde ein Schlüssel für mehrere Ergebnisse angegeben
+// 2. Es wurde für für jedes Ergebnis ein Schlüssel angegeben
+// Fall 1 tritt dann ein, wenn mehrere Ergebnisse aber genau nur ein Schlüssel
+// vorhanden ist. In dem Fall werden alle Ergebnisse als Array zum Schlüssel im
+// Datenspeicher abgelegt. Gibt es nur einen Schlüssel und nur ein
+// Ergebnis, so wird das eine Ergebnis direkt zum Schlüssel zugeordnet.
+// Wenn es mehrere Schlüssel gibt, so werden die Ergebnisse in der gleichen
+// Reihenfolge der Schlüssel zugeordnet. Überschüssige Ergebnisse, für die kein
+// Schlüssel definiert wurde, werden ignoriert. Falls mehr Schlüssel als
+// Ergebnisse vorhanden sind, werden die Werte der überschüssigen Schlüssel mit
+// `undefined` gefüllt.
+
+    cb: function() {
+      var args = arguments, $this = this;
+      cb_start(this);
+      return( function() {
+        if (args.length == 1) $this.data[args[0]] = arguments.length == 1 ? arguments[0] : copyArray(arguments);
+        else for (var i = 0; i < args.length; i++) $this.data[args[i]] = i < arguments.length ? arguments[i] : undefined;
+        cb_end($this);
+      });
+    },
+
+// Hier nun die Kapselung des "klassischen" Falles: ein Callback
+// mit genau zwei Parametern, der erste im Fehler- und der zweite im
+// Erfolgsfall. Optional kann der Schlüssel, unter dem das Ergebnis
+// im Erfolgsfall im Datenobjekt gespeichert wird, angegeben
+// werden. Sollte dieser nicht agegeben sein, so wird der Schlüssel auf
+// "result" gesetzt.
+// Ist ein Fehler aufgetreten, so wird dieser mit dem
+// Schlüssel `error` im Datenspeicher abgelegt.
+// Wenn der Fehler nicht gesetzt ist, ist vom Erfolgsfall auszugehen
+// das das Ergebnis wird wie zuvor definiert abgespeichert.
+
+    cber: function(resultkey) {
+      var reskey = resultkey || "result", $this = this;
+      cb_start($this);
+      return(function(e,r) {
+        if (e) $this.data.error = e;
+        else $this.data[reskey] = r;
+        cb_end($this);
+      });
+    },
+
+// Durch die Kapselung der auszuführenden Funktionen mittels der Methode
+// `ex()` ist zwar bekannt, wann diese abgeschlossen sind, dies gilt
+// jedoch nicht für den Aufrufer. Es muss der "Startschuss" gegeben
+// werden, wann mit der Ausführung losgelegt werden soll. Dafür ist
+// die Methode `run()` vorhanden. Zusätzlich können hier analog zur
+// Methode `ex()` Funktionen angegeben werden, die auszuführen sind.
+// Hintergrund ist, dass es ggf. ausreicht nur `run()` aufzurufen.
+
+    run: function() {
+      this.ex.apply(this, arguments);
+      this.closed = true;
+      next(this);
+    },
+
+// Als Letztes kommt eine Methode zum Datenabruf bzw. -setzen in den
+// Datenspeicher, die Methode `d()` (wie "Daten").
+// Sie arbeitet je nach Parameteranzahl unterschiedlich.
+// Bei keinem Parameter wird als Ergebnis das Datenspeicherobjekt
+// zurückgegeben.
+// Bei Angabe nur eines Parameters wird dieser als Schlüssel
+// interpretiert und der dazu gespeicherte Wert aus dem
+// Datenspeicher zurückgegeben.
+// Bei zwei der mehr Parametern werden (momentan) nur die die ersten zwei
+// berücksichtigt, der erste als Schlüssel und der zweite als Wert. Dieses
+// Paar wird im Datenspeicherobjekt abgelegt.
+
+    d: function() {
+      switch (arguments.length) {
+        case 0: return(this.data);
+        case 1: return(this.data[arguments[0]]);
+        default: this.data[arguments[0]] = arguments[1];
       }
       return(this);
-    },
-    error: function(err, section) {
-      this.Errors++;
-      this.ResultStatus = RESULT.ERROR;
-      this.LastError = err;
-      sendMessage(this, MESSAGES.ERROR, section||this.id, err);
-      return(this);
-    },
-    close: function() {
-      if (this.Status == STATUS.RUNNING) {
-        this.Status = STATUS.CLOSED;
-        sendMessage(this, MESSAGES.CLOSE, this.Id, this);
-        checkIfDone(this);
-      }
-      return(this);
-    },
-    cancel: function() {
-      if (this.Status !== STATUS.CANCELED && this.Status !== STATUS.DONE) {
-        this.Status = STATUS.CANCELED;
-        checkIfDone(this);
-      }
-      return(this);
-    },
-    'on': function() {
-      var section, key, fn, args = copyArray(arguments);
-      if (args.length < 2) throw new TypeError('at least section and function must be given');
-      section = args.shift();
-      key = args.shift();
-      if (args.length > 0) fn = args.shift();
-      else { fn = key; key = '*'; }
-      if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function');
-      MessageHandler.addListener(section, key, fn);
-      return(this);
-    },
-    finally : function(fn) {
-      if (arguments.length == 0) throw new TypeError('no function specified'); // assert
-      if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function'); // assert
-      MessageHandler.addListener(MESSAGES.FINAL, null, fn);
-      return(this);
-    },
-    setValue: function(key, value) { Storage[key||'*'] = value; return(this); },
-    getValue: function(key) { return(Storage[key||'*']); },
-    cbUser: function() {
-      var cbdesc = createDesc(this, this.CallbackCounter++, arguments), $this = this,
-          fn = function(fn) {
-           if (arguments.length == 0) throw new TypeError('no function specified'); // assert
-           if (typeof fn !== 'function') throw new TypeError(fn + ' is not a function'); // assert
-           var res = fn.apply(cbdesc.$this, arguments/*cbdesc.Args*/);
-           $this.cbEnd([cbdesc.Id, res]);
-           //return($this);
-          };
-      this.cbStart(cbdesc.Id);
-      return(fn);
-    },
-    cbES : function() {
-      var cbdesc = createDesc(this, this.CallbackCounter++, arguments), $this = this,
-          fn = function(error, result) {
-            if (error) 
-              $this.error(error, cbdesc.Id);
-            else 
-              sendMessage($this, MESSAGES.CALLBACKRESULT, cbdesc.Id, result);
-            $this.cbEnd([cbdesc.Id]);
-          };
-      this.cbStart(cbdesc.Id);
-      return(fn);
-    },
-    cbS : function() {
-      var cbdesc = createDesc(this, this.CallbackCounter++, arguments), $this = this,
-          fn = function() {
-            sendMessage($this, MESSAGES.CALLBACKRESULT, cbdesc.Id, arguments);
-            $this.cbEnd([cbdesc.Id]);
-          };
-      this.cbStart(cbdesc.Id);
-      return(fn);
     }
   };
+// Rein technisch: setzen des Prototypen, zuvor wurde dieser nur definiert.
   $constructor.prototype = $proto;
-  
-  // constructor
-  function $constructor(fndesc, parent) {
-    if (! (this instanceof $constructor)) return new $constructor(fndesc, parent);
-    if (!fndesc) {
-      if (BlockHistory.length) return(BlockHistory[BlockHistory.length-1]);
-      this.Id = BlockCounter++;
-      this.Status = STATUS.RUNNING;
-      BlockHistory.push(this);
-    } 
-    else {
-      this.Id = fndesc.Id;
-      this.FnDesc = fndesc;
-      this.Parent = parent;
-      this.Status = STATUS.READY;
-    }
-    this.BlockQueue = new SimpleIterator();
-    this.CallbackCounter = 1;
-    this.OpenCallbacks = 0;
-    this.LastError = "";
-    this.Errors = 0;
-    this.ResultStatus = RESULT.SUCCESS;
-  }
-  
-  $constructor.STATUS = STATUS;
-  $constructor.RESULT = RESULT;
-  $constructor.MESSAGES = MESSAGES;
 
-  // the end:
+// Der Konstruktor
+// -------------------
+  function $constructor() {
+    if (! (this instanceof $constructor)) return new $constructor();
+// - der Funktionsspeicher der aufzurufenden Funktionen
+    this.queue = [];
+// - der Leseindex des Funktionsspeichers, der die als nächstes auszuführenden Funktion markiert
+    this.rindex = 0;
+// - der Schreibindex des Funktionsspeichers, der die Stelle markiert wo weitere Funktionen eingefügt werden
+    this.windex = 0;
+// - der Zähler für die angeforderten aber noch nicht aufgerufenen Callbacks
+    this.callbackcounter = 0;
+// - der Datenspeicher für Variablen, der für alle Funktionen zur Verfügung steht
+    this.data = {__fl: this};
+// - ein Indikator, ob die Hauptroutine der Funktion bereits ausgeführt wurde
+//   (und somit "nur" noch auf Callbacks zu warten ist)
+    this.closed = false;
+// - ein Zähler für die Aufruftiefe der Funktionen untereinander, zum späteren Gebrauch
+    this.depth = 0;
+
+  }
+// **Ende** - die zuvor definierte Klasse wird zurückgegeben
   return($constructor);
 })();
 
 
-// support for require
+// Unterstützung für `require` i.d.R. im Node.js-Umfeld. Hier wird das zuvor erstelle
+// Objekt exportiert.
 if (typeof require !== "undefined" && typeof module !== "undefined") module.exports = fl;

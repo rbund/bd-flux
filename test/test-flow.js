@@ -7,71 +7,53 @@ const TC = require("..");
     var testid = 'test1';
     //console.log(testid,'start =============================');
     var flow = [];
+    var fl = new TC();
     
     function B1() {
       function B4() {
-        flow.push(this.Id);
-        TC().close();
+        flow.push("B4");
       }
       function B5() {
         function B7() {
-          flow.push(this.Id);
-          TC().close();
+          flow.push("B7");
         }
         function B8() {
           function B10() {
-            flow.push(this.Id);
-            TC().close();
+            flow.push("B10");
           }
-          flow.push(this.Id);
-          TC().x('B10')(B10);
-          TC().close();
+          flow.push("B8");
+          fl.ex(B10);
         }
-        flow.push(this.Id);
-        TC().x('B7')(B7)
-            .x('B8')(B8);
-        TC().close();    
+        flow.push("B5");
+        fl.ex(B7, B8);
       }
-      flow.push(this.Id);
-      TC().x('B4')(B4)
-          .x('B5')(B5);
-      TC().close();
+      flow.push("B1");
+      fl.ex(B4, B5);
     }
     function B2() {
       function B6() {
         function B9() {
-          flow.push(this.Id);
-          TC().close();
+          flow.push("B9");
         }
-        flow.push(this.Id);
-        TC().x('B9')(B9);
-        TC().close();
+        flow.push("B6");
+        fl.ex(B9);
       }
-      flow.push(this.Id);
-      TC().x('B6')(B6);
-      TC().close();
+      flow.push("B2");
+      fl.ex(B6);
     }
     function B3() {
-      flow.push(this.Id);
-      TC().close();
-    }
-    TC().x('B1')(B1)
-        .x('B2')(B2)
-        .x('B3')(B3)
-        .finally(function() {
+      flow.push("B3");
+    }    
+    fl.ex(B1)
+    .ex(B2)
+    .ex(B3)
+    .ex(() => {
           var expected = 'B1,B4,B5,B7,B8,B10,B2,B6,B9,B3';
           var s = flow.join(',');
           t.equal(s, expected, "nested basic flow");
           t.end();
-          /*
-          if (s == expected) console.log('passed');
-          else consoloe.log('failed');
-          console.log('expected:',s);
-          console.log('result:',s);
-          */
         });
-    TC().close();    
-    //console.log(testid,'end ===============================');
+    fl.run();
   }
   
  

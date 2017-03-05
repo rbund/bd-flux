@@ -84,62 +84,80 @@ const TC = require("..");
 
   // fake sql, happy path
   function test2(t) {
-    var testid = 'test2';
+    var testid = 'test2', fl = new TC();
     //console.log(testid,'start =============================');
-    TC()
-    .setValue('lastcommand','COMMIT')
-    .on('error','check2', function(e) { t.error(e); this.setValue('lastcommand','ROLLBACK'); this.cancel(); })
-  //  .finally(function(s) { t.end(); })
-    .x()( function() { testobj.query(t,'BEGIN', TC().cbES()); TC().close(); })
-    .on('callbackresult','key', function(key) { TC().setValue('key', key);})
-    .on('callbackresult', function(r) { t.pass(r); })
-    .x()( function() { testobj.query(t,'INSERT RETURN', TC().cbES('key')); TC().close();})
-    .x('check2')( function() {
-        testobj.query(t,'INSERT ' + TC().getValue('key'), TC().cbES());
-        testobj.query(t,'INSERT ' + TC().getValue('key'), TC().cbES());
-        testobj.query(t,'INSERT ' + TC().getValue('key'), TC().cbES());
-        TC().close();
-    })
-    .x()( function() { testobj.query(t,this.getValue('lastcommand'), TC().cbES()); TC().close();})
-    .x()(function() { t.end(); });
-    TC().close();
-
-    //console.log(testid,'end ===============================');
+    
+    fl.ex(
+      (d) => {
+        testobj.query(t,'BEGIN',fl.cber());
+      },
+      (d) => {
+        t.error(d.error, 'no error after BEGIN');
+        if (!d.error) testobj.query(t,'INSERT RETURN', fl.cber("key"));
+      },
+      (d) => {
+        t.error(d.error, 'no error after INSERT RETURN');
+        if (!d.error && d.key) {
+          testobj.query(t,'INSERT ' + d.key, fl.cber());
+          testobj.query(t,'INSERT ' + d.key, fl.cber());
+          testobj.query(t,'INSERT ' + d.key, fl.cber());
+        }
+      },
+      (d) => {
+        t.error(d.error, 'no error after INSERTs');
+        if (d.error) testobj.query(t,'ROLLBACK', fl.cber());
+        else testobj.query(t,'COMMIT', fl.cber());
+        
+      },
+      (d) => {
+        t.error(d.error,'no error after COMMIT');
+        t.end();
+      }
+    );
+    fl.run();
   }  
 
   // fake sql, on error path test
   function test3(t) {
-    var testid = 'test3';
+    var testid = 'test3', fl = new TC();
     var onerror = false;
     //console.log(testid,'start =============================');
     
-    TC()
-    .setValue('lastcommand','COMMIT')
-    .on('error', 'check3', function(e) { 
-      if (onerror) t.error(e); else { onerror = true; t.pass('expected error: '+e); }
-      this.setValue('lastcommand','ROLLBACK'); 
-      this.cancel(); 
-    })
-    //.finally(function(s) { t.end(); })
-    .x()( function() { testobj.query(t,'BEGIN', TC().cbES()); TC().close(); })
-    .on('callbackresult','key', function(key) { TC().setValue('key', key);})
-    .on('callbackresult', function(r) { t.pass(r); })
-    .x()( function() { testobj.query(t,'INSERT RETURN', TC().cbES('key')); TC().close();})
-    .x('check3')( function() {
-        testobj.query(t,'INSERT ' + TC().getValue('key'), TC().cbES());
-        testobj.query(t,'INSERT x' + TC().getValue('key'), TC().cbES());
-        testobj.query(t,'INSERT ' + TC().getValue('key'), TC().cbES());
-        TC().close();
-    })
-    .x()( function() { testobj.query(t,this.getValue('lastcommand'), TC().cbES()); TC().close();})
-    .x()(function() { t.end(); });
-    TC().close();
+    fl.ex(
+      (d) => {
+        testobj.query(t,'BEGIN',fl.cber());
+      },
+      (d) => {
+        t.error(d.error, 'no error after BEGIN');
+        if (!d.error) testobj.query(t,'INSERT RETURN', fl.cber("key"));
+      },
+      (d) => {
+        t.error(d.error,'no error after INSERT RETURN');
+        if (!d.error && d.key) {
+          testobj.query(t,'INSERT ' + d.key, fl.cber());
+          testobj.query(t,'INSERT xxx' + d.key, fl.cber());
+          testobj.query(t,'INSERT ' + d.key, fl.cber());
+        }
+      },
+      (d) => {
+        t.ok(d.error,'expected error after INSERTs');
+        if (d.error) {
+          fl.d('error', null);
+          testobj.query(t,'ROLLBACK', fl.cber());
+        }
+        else testobj.query(t,'COMMIT', fl.cber());
+      },
+      (d) => {
+        t.error(d.error,'no error after ROLLBACK');
+        t.end();
+      }
+    );
 
+    fl.run();
     //console.log(testid,'end ===============================');
   }  
 
   
   test("testobj happy path test",test1);
   test("happy path test",test2);
-  test("error path test",test3);
-  
+  test("error path test",test3);  
