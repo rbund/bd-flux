@@ -83,7 +83,7 @@ Nun das Beispiel übertragen auf bd-flux:
 		    console.log(data.result);
 		}
 
-		fl().run(fist, second);
+		fl().run(first, second);
 
 Zuerst wird die Konstante `fl` auf die eingebundenen Bibliothek bd-flux gesetzt.
 Mit dem Aufruf `fl()` wird eine Instanz eines bd-flux Objektes erzeugt und
