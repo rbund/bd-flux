@@ -14,6 +14,12 @@ var fl = (function() {
 
   "use strict"; // jdi-disable-line
 
+// Konstanten
+// ----------
+// Keine Verwendung des "const" Typen, da ggf. ältere Browser unterstützt werden sollen
+  var ERR_NOT_A_FUNCTION = " is not a function";
+  var ERR_NOT_AN_ARRAY = " is not an array";
+  
 // Private Klassenvariablen und -funktionen
 // ----------------------------------------
 
@@ -91,7 +97,7 @@ var fl = (function() {
 
     ex : function() {
       for (var i = 0; i < arguments.length; i++) {
-        if (typeof arguments[i] !== 'function') throw new TypeError(arguments[i] + ' is not a function');
+        if (typeof arguments[i] !== 'function') throw new TypeError(arguments[i] + ERR_NOT_A_FUNCTION);
         this.queue.splice(this.windex++,0,arguments[i]);
       }
       return(this);
@@ -109,43 +115,53 @@ var fl = (function() {
 
     // seriell
     sjob : function(data_array, fn, reskey, noclear) {
+      if (typeof fn != "function") throw new TypeError(fn + ERR_NOT_A_FUNCTION);
+      if (!(Array.isArray(data_array))) throw new TypeError(data_array + ERR_NOT_AN_ARRAY);
+      
       var boss = new $constructor(0), $this = this;
-      for (var i = 0; i < data_array.length; i++) {
-        boss.ex(
-          (function(work, proc) {
-            var worker = function(d) {
-              proc(work, d);
-            };
-            return(worker);
-          })(data_array[i],fn),
-          (function(id) {
-          return(
-            function(d) {
-              mergeJobData($this.data, reskey, d, id);
-              if (!noclear) d.__fl.data = { "__fl": d.__fl };
-            });
-          })(i)
-        );
-      }
-      var waiter = this.cb();
-      boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      if (data_array.length) {
+        for (var i = 0; i < data_array.length; i++) {
+          boss.ex(
+            (function(work, proc) {
+              var worker = function(d) {
+                proc(work, d);
+              };
+              return(worker);
+            })(data_array[i],fn),
+            (function(id) {
+            return(
+              function(d) {
+                mergeJobData($this.data, reskey, d, id);
+                if (!noclear) d.__fl.data = { "__fl": d.__fl };
+              });
+            })(i)
+          );
+        }
+        
+        var waiter = this.cb();
+        boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      } else this.data[reskey] = {};
       return(this);
     },
     // parallel
     pjob : function(data_array, fn, reskey) {
-      var boss = new $constructor(), $this = this;
-
-      for (var i = 0; i < data_array.length; i++) {
-          (function(work, proc, id, cb) {
-              var iboss = new $constructor();
-              iboss.run(
-                function(d) { proc(work, d); },
-                function(d) { mergeJobData($this.data, reskey, d, id); cb(); }
-              );
-          })(data_array[i],fn, i, boss.cb());
-      }
-      var waiter = this.cb();
-      boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      if (typeof fn != "function") throw new TypeError(fn + ERR_NOT_A_FUNCTION);
+      if (!(Array.isArray(data_array))) throw new TypeError(data_array + ERR_NOT_AN_ARRAY);
+      
+      if (data_array.length) {
+        var boss = new $constructor(), $this = this;
+        for (var i = 0; i < data_array.length; i++) {
+            (function(work, proc, id, cb) {
+                var iboss = new $constructor();
+                iboss.run(
+                  function(d) { proc(work, d); },
+                  function(d) { mergeJobData($this.data, reskey, d, id); cb(); }
+                );
+            })(data_array[i],fn, i, boss.cb());
+        }
+        var waiter = this.cb();
+        boss.run(function(d) { delete $this.data[reskey].__fl; waiter(); });
+      } else this.data[reskey] = {};
       return(this);
     },
 

@@ -1,6 +1,6 @@
 {
   "name": "bd-flux",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "a async flow and callback toolkit",
   "main": "bd-flux.js",
   "scripts": {
